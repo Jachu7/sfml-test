@@ -234,6 +234,19 @@ int main()
     c.setFillColor(sf::Color(0,255,0));
     c.setPosition({20.f, 20.f});
 
+    // checkpointy
+    sf::CircleShape ch1({70.f});
+    ch1.setFillColor(sf::Color(100,150,200));
+    ch1.setPosition({530.f, 500.f});
+
+    sf::CircleShape ch2({70.f});
+    ch2.setFillColor(sf::Color(100,150,200));
+    ch2.setPosition({530.f, 270.f});
+
+    sf::CircleShape ch3({70.f});
+    ch3.setFillColor(sf::Color(100,150,200));
+    ch3.setPosition({530.f, 70.f});
+
     // przeszkody
     std::vector<sf::RectangleShape> przeszkody;
     auto dodajPrzeszkode = [&](sf::Vector2f size, sf::Vector2f pos) {
@@ -302,6 +315,9 @@ int main()
         }
         if (nauka) {
             window.draw(c);
+            window.draw(ch1);
+            window.draw(ch2);
+            window.draw(ch3);
             gracz.draw(window);
             for (const auto& p : przeszkody) window.draw(p);
         }
