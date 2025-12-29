@@ -1,5 +1,11 @@
 #include "Neuron.h"
 
+void Neuron::setValue(double value) {
+    this->value = value;
+    activate();
+    derive();
+}
+
 // konstruktor
 Neuron::Neuron(double value) {
     this->value = value;

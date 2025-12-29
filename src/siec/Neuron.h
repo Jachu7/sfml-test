@@ -7,6 +7,7 @@
 class Neuron {
     public:
         Neuron(double value);
+        void setValue(double value);
         void activate();
         void derive();
 
