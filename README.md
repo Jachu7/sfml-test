@@ -1,114 +1,186 @@
-# CMake SFML Project Template
+# 🚀 Neural Network Rockets
 
-This repository template should allow for a fast and hassle-free kick start of your next SFML project using CMake.
-Thanks to [GitHub's nature of templates](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template), you can fork this repository without inheriting its Git history.
+<div align="center">
 
-The template starts out very basic, but might receive additional features over time:
+**An evolutionary simulation where autonomous agents learn to navigate through obstacles using neural networks and genetic algorithms**
 
-- Basic CMake script to build your project and link SFML on any operating system
-- Basic [GitHub Actions](https://github.com/features/actions) script for all major platforms
+[About](#-about-the-project) • [Features](#%EF%B8%8F-tech-stack--features) • [How to Build](#-how-to-build-and-run) • [How it Works](#-how-it-works) • [Acknowledgements](#-inspiration--acknowledgements)
 
-## Quick start
+---
 
-### Command line
+</div>
 
-1. Install [Git](https://git-scm.com/downloads) and [CMake](https://cmake.org/download/). Use your system's package manager if available.
-2. Follow [GitHub's instructions](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template) for how to use their project template feature to create your own project. If you don't want to use GitHub, see the section below.
-3. Clone your new GitHub repo and open the repo in your text editor of choice.
-4. Open [CMakeLists.txt](CMakeLists.txt). Rename the project and the target name of the executable to whatever name you want. Make sure to change all occurrences.
-5. If you want to add or remove any .cpp files, change the source files listed in the `add_executable` call in CMakeLists.txt to match the source files your project requires. If you plan on keeping the default main.cpp file then no changes are required.
-6. If your code uses the Audio or Network modules then add `SFML::Audio` or `SFML::Network` to the `target_link_libraries` call alongside the existing `SFML::Graphics` library that is being linked.
-7. If you use Linux, install SFML's dependencies using your system package manager. On Ubuntu and other Debian-based distributions you can use the following commands:
-   ```
-   sudo apt update
-   sudo apt install \
-       libxrandr-dev \
-       libxcursor-dev \
-       libxi-dev \
-       libudev-dev \
-       libfreetype-dev \
-       libflac-dev \
-       libvorbis-dev \
-       libgl1-mesa-dev \
-       libegl1-mesa-dev \
-       libfreetype-dev
-   ```
-8. Configure and build your project. Most popular IDEs support CMake projects with very little effort on your part.
+## 📖 About the Project
 
-   - [VS Code](https://code.visualstudio.com) via the [CMake extension](https://code.visualstudio.com/docs/cpp/cmake-linux)
-   - [Visual Studio](https://docs.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio?view=msvc-170)
-   - [CLion](https://www.jetbrains.com/clion/features/cmake-support.html)
-   - [Qt Creator](https://doc.qt.io/qtcreator/creator-project-cmake.html)
+Neural Network Rockets is a simulation project where autonomous agents (rockets) learn to navigate through an obstacle course to reach a target. The project implements a **Neural Network library from scratch** (without using external AI frameworks like TensorFlow or PyTorch) and utilizes a **Genetic Algorithm** to evolve the population over generations.
 
-   Using CMake from the command line is straightforward as well.
-   Be sure to run these commands in the root directory of the project you just created.
+The rockets use raycasting sensors (lasers) to "see" their surroundings and make decisions based on their neural network's output.
 
-   ```
-   cmake -B build
-   cmake --build build
-   ```
+---
 
-9. Enjoy!
+## 🎓 Academic Context
 
-### Visual Studio
+This project was created as a final assignment for the **Programming 1 course.**
 
-Using a Visual Studio workspace is the simplest way to get started on windows.
+-   **University:** Silesian University of Technology
+-   **Faculty:** Faculty of Applied Mathematics
+-   **Major:** Computer Science (1st Year)
 
-1. Ensure you have the [required components installed](https://learn.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio#installation).
-2. Follow [GitHub's instructions](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template) for how to use their project template feature to create your own project.
-3. If you have already cloned this repo, you can [open the folder](https://learn.microsoft.com/en-us/cpp/build/cmake-projects-in-visual-studio0#ide-integration).
-4. If not, you can [clone it directly in Visual Studio](https://learn.microsoft.com/en-us/visualstudio/get-started/tutorial-open-project-from-repo).
+---
 
-Visual Studio should automatically configure the CMake project, then you can build and run as normal through Visual Studio. See the links above for more details.
+## 🛠️ Tech Stack & Features
 
-## Upgrading SFML
+### Technologies
 
-SFML is found via CMake's [FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html) module.
-FetchContent automatically downloads SFML from GitHub and builds it alongside your own code.
-Beyond the convenience of not having to install SFML yourself, this ensures ABI compatibility and simplifies things like specifying static versus shared libraries.
+-   **Language:** C++
+-   **Graphics:** SFML (Simple and Fast Multimedia Library)
+-   **Build System:** CMake
 
-Modifying what version of SFML you want is as easy as changing the `GIT_TAG` argument.
-Currently it uses SFML 3 via the `3.0.2` tag.
+### Key Concepts
 
-## But I want to...
+-   **Neural Network:** Fully connected Multi-Layer Perceptron (MLP) built from scratch using matrix operations
+-   **Genetic Algorithm:** Implements Selection, Crossover, Mutation, and Elitism
+-   **Raycasting:** Custom collision detection sensors for the agents
 
-Modify CMake options by adding them as configuration parameters (with a `-D` flag) or by modifying the contents of CMakeCache.txt and rebuilding.
+---
 
-### Not use GitHub
+## 💡 Inspiration & Acknowledgements
 
-You can use this project without a GitHub account by [downloading the contents](https://github.com/SFML/cmake-sfml-project/archive/refs/heads/master.zip) of the repository as a ZIP archive and unpacking it locally.
-This approach also avoids using Git entirely if you would prefer to not do that.
+The structure of the project and the implementation of the core Neural Network were inspired by the **"Live Coding 2: C++ Neural Network"** series by the YouTube channel **devlogs**.
 
-### Change Compilers
+This tutorial series was instrumental in understanding how to structure the matrix math and the architecture required to build a neural network from scratch in C++.
 
-See the variety of [`CMAKE_<LANG>_COMPILER`](https://cmake.org/cmake/help/latest/variable/CMAKE_LANG_COMPILER.html) options.
-In particular you'll want to modify `CMAKE_CXX_COMPILER` to point to the C++ compiler you wish to use.
+**Channel:** [devlogs](https://www.youtube.com/@devlogs1785)
 
-### Change Compiler Optimizations
+---
 
-CMake abstracts away specific optimizer flags through the [`CMAKE_BUILD_TYPE`](https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html) option.
-By default this project recommends `Release` builds which enable optimizations.
-Other build types include `Debug` builds which enable debug symbols but disable optimizations.
-If you're using a multi-configuration generator (as is often the case on Windows), you can modify the [`CMAKE_CONFIGURATION_TYPES`](https://cmake.org/cmake/help/latest/variable/CMAKE_CONFIGURATION_TYPES.html#variable:CMAKE_CONFIGURATION_TYPES) option.
+## 🚀 How to Build and Run
 
-### Change Generators
+### Prerequisites
 
-While CMake will attempt to pick a suitable default generator, some systems offer a number of generators to choose from.
-Ubuntu, for example, offers Makefiles and Ninja as two potential options.
-For a list of generators, click [here](https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html).
-To modify the generator you're using you must reconfigure your project providing a `-G` flag with a value corresponding to the generator you want.
-You can't simply modify an entry in the CMakeCache.txt file unlike the above options.
-Then you may rebuild your project with this new generator.
+-   C++ Compiler (supporting C++17)
+-   CMake (Version 3.10 or higher)
+-   SFML Library (Must be installed on your system)
 
-## More Reading
+### 🐧 Linux (Terminal)
 
-Here are some useful resources if you want to learn more about CMake:
+1. **Clone the repository:**
 
-- [Official CMake Tutorial](https://cmake.org/cmake/help/latest/guide/tutorial/)
-- [How to Use CMake Without the Agonizing Pain - Part 1](https://alexreinking.com/blog/how-to-use-cmake-without-the-agonizing-pain-part-1.html)
-- [How to Use CMake Without the Agonizing Pain - Part 2](https://alexreinking.com/blog/how-to-use-cmake-without-the-agonizing-pain-part-2.html)
-- [Better CMake YouTube series by Jefferon Amstutz](https://www.youtube.com/playlist?list=PL8i3OhJb4FNV10aIZ8oF0AA46HgA2ed8g)
+    ```bash
+    git clone https://github.com/Jachu7/Neural-Network-Rockets.git
+    cd Neural-Network-Rockets
+    ```
 
-## License
+2. **Create a build directory:**
 
-The source code is dual licensed under Public Domain and MIT -- choose whichever you prefer.
+    ```bash
+    mkdir build
+    cd build
+    ```
+
+3. **Generate Makefiles using CMake:**
+
+    ```bash
+    cmake ..
+    ```
+
+4. **Compile the project:**
+
+    ```bash
+    make
+    ```
+
+5. **Run the application:**
+    ```bash
+    cd bin
+    ./main
+    ```
+
+> **Note:** If the bin folder is not created, try running `./NeuralNetworkRockets` directly in the build folder, depending on your CMake configuration.
+
+### 🪟 Windows
+
+The easiest way to build and run this project on Windows is using **CLion** (JetBrains) or **Visual Studio**, as they have built-in CMake support.
+
+#### Using CLion:
+
+1. Open CLion
+2. Select "Open" or "Open from VCS" and select the project folder
+3. CLion will automatically detect the `CMakeLists.txt` file and load the project structure
+4. Wait for the indexing and CMake configuration to finish (you should see "CMake: Finish" in the bottom console)
+5. Click the green **Run** (Play) button in the top right corner
+
+> **Note:** Ensure that SFML is properly linked in your environment or installed via a package manager like vcpkg.
+
+---
+
+## 📂 Project Structure
+
+### Core Components
+
+-   **main.cpp:** Contains the main simulation loop, the Genetic Algorithm logic (evolution, mutation, crossover), and SFML rendering
+-   **Rocket (main.cpp struct):** Represents an agent. Handles physics, sensory input (lasers), and fitness calculation
+
+### Neural Network Library (`/siec` folder)
+
+-   **NeuralNetwork:** Manages the topology of the network. Handles feedForward (passing data from input to output) and manages layers
+-   **Layer:** Represents a layer of neurons
+-   **Neuron:** A single unit that holds a value and an activation function (Softsign)
+-   **Matrix:** A custom math class to handle weights and matrix multiplication
+-   **MultiplyMatrix:** Utility class for matrix operations
+
+---
+
+## 🧠 How it Works
+
+### 1. **Initialization**
+
+100 rockets are spawned with random neural weights.
+
+### 2. **Simulation**
+
+-   Inputs (distances, velocity, angle to target) are fed into the Neural Network
+-   The Network outputs control signals (Thrust, Rotate Left, Rotate Right)
+
+### 3. **Evaluation**
+
+-   If a rocket hits a wall, it dies
+-   If a rocket reaches the target, it succeeds
+-   Fitness is calculated based on: Checkpoints reached, distance to target, and completion time
+
+### 4. **Evolution**
+
+-   The best rockets are kept (Elitism)
+-   New rockets are created by mixing the "brains" (weights) of the best performers
+-   Small random changes are applied (Mutation) to discover new strategies
+
+### 5. **Repeat**
+
+The cycle continues, and rockets get smarter every generation.
+
+---
+
+## 📊 Training Performance
+
+-   **Training Duration:** On average, the population learns to navigate the course effectively within **15 to 50 generations**
+-   **Success Rate:** A success rate of 30-60 rockets out of 100 reaching the target is perfectly acceptable during training. This level of performance demonstrates that the neural networks have learned viable strategies, and in real-world applications, such success rates would be sufficient for practical deployment
+
+---
+
+## ⭐ Final Notes
+
+This project demonstrates how:
+
+-   Neural networks can be implemented from scratch
+-   Evolutionary algorithms can replace traditional training methods
+-   Complex behavior can emerge from simple rules
+
+**If you find this project interesting, feel free to ⭐ the repository!**
+
+---
+
+<div align="center">
+
+**Made with ❤️ as a Programming 1 final project**
+
+</div>
