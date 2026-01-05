@@ -4,30 +4,26 @@
 #include <iostream>
 #include <math.h>
 
-class Neuron {
-    public:
-        Neuron(double value);
-        void setValue(double value);
-        void activate();
-        void derive();
+class Neuron
+{
+public:
+    Neuron(double value);
+    void setValue(double value);
+    void activate();
 
+    // getters
+    double getValue()
+    {
+        return this->value;
+    }
+    double getActiveValue()
+    {
+        return this->activatedValue;
+    }
 
-        //getters
-        double getValue() {
-            return this->value;
-        }
-        double getActiveValue() {
-            return this->activatedValue;
-        }
-        double getDerivativeValue() {
-            return this->derivedValue;
-        }
-
-    private:
-        double value;
-        double activatedValue;
-        double derivedValue;
+private:
+    double value;
+    double activatedValue;
 };
 
-
-#endif //CMAKESFMLPROJECT_NEURON_H
+#endif // CMAKESFMLPROJECT_NEURON_H

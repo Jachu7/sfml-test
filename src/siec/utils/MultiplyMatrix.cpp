@@ -1,10 +1,13 @@
 #include "MultiplyMatrix.h"
 
-utils::MultiplyMatrix::MultiplyMatrix(Matrix *a, Matrix *b) {
+// Konstruktor przygotowujący mnożenie. Sprawdza, czy wymiary macierzy są zgodne (liczba kolumn A musi równać się liczbie wierszy B) i alokuje pamięć na macierz wynikową c
+utils::MultiplyMatrix::MultiplyMatrix(Matrix *a, Matrix *b)
+{
     this->a = a;
     this->b = b;
 
-    if(a->getNumCols() != b->getNumRows()) {
+    if (a->getNumCols() != b->getNumRows())
+    {
         std::cerr << "A_rows: " << a->getNumRows() << " != B_cols: " << b->getNumCols() << std::endl;
         assert(false);
     }
@@ -12,10 +15,15 @@ utils::MultiplyMatrix::MultiplyMatrix(Matrix *a, Matrix *b) {
     this->c = new Matrix(a->getNumRows(), b->getNumCols(), false);
 }
 
-Matrix *utils::MultiplyMatrix::execute() {
-    for(int i = 0; i < a->getNumRows(); i++) {
-        for(int j = 0; j < b->getNumCols(); j++) {
-            for(int k = 0; k < b->getNumRows(); k++) {
+// Wykonuje właściwe mnożenie macierzy (wiersze razy kolumny) i zwraca wskaźnik do nowo utworzonej macierzy wynikowej
+Matrix *utils::MultiplyMatrix::execute()
+{
+    for (int i = 0; i < a->getNumRows(); i++)
+    {
+        for (int j = 0; j < b->getNumCols(); j++)
+        {
+            for (int k = 0; k < b->getNumRows(); k++)
+            {
                 double p = this->a->getValue(i, k) * this->b->getValue(k, j);
                 double newVal = this->c->getValue(i, j) + p;
                 this->c->setValue(i, j, newVal);

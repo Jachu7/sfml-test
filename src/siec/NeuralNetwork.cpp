@@ -1,44 +1,19 @@
 #include "NeuralNetwork.h"
 #include "utils/MultiplyMatrix.h"
 
+// Destruktor. Odpowiada za zwolnienie pamięci (usuwa wskaźniki na warstwy i macierze wag), aby zapobiec wyciekom pamięci
 NeuralNetwork::~NeuralNetwork()
 {
     for (auto l : layers)
         delete l;
     for (auto m : weightMatrices)
         delete m;
-    // gradientMatrices w tym kodzie nie są inicjalizowane w konstruktorze,
-    // ale jeśli by były, też trzeba je usunąć.
 }
 
-void NeuralNetwork::setErrors()
-{
-    if (this->target.size() == 0)
-    {
-        std::cerr << "No target for this neural network" << std::endl;
-        assert(false);
-    }
-
-    if (this->target.size() != this->layers.at(this->layers.size() - 1)->getNeurons().size())
-    {
-        std::cerr << "Target size is not the same as output layer size: " << this->layers.at(this->layers.size() - 1)->getNeurons().size() << std::endl;
-        assert(false);
-    }
-
-    this->error = 0.00;
-    int outputLayerIndex = this->layers.size() - 1;
-    std::vector<Neuron *> outputNeurons = this->layers.at(outputLayerIndex)->getNeurons();
-    errors.resize(target.size()); // Ensure errors vector has correct size
-    for (int i = 0; i < target.size(); i++)
-    {
-        double tempErr = (outputNeurons.at(i)->getActiveValue() - target.at(i));
-        errors.at(i) = tempErr;
-        this->error += tempErr;
-    }
-
-    historicalErrors.push_back(this->error);
-}
-
+// Realizuje przepływ sygnału przez sieć (od wejścia do wyjścia). Dla każdej warstwy:
+// 1. Pobiera wartości neuronów jako macierz.
+// 2. Mnoży je przez macierz wag (używając MultiplyMatrix).
+// 3. Ustawia wynik jako wartości neuronów w kolejnej warstwie. Zarządza również dynamiczną alokacją pamięci dla tymczasowych macierzy.
 void NeuralNetwork::feedForward()
 {
     for (int i = 0; i < (this->layers.size() - 1); i++)
@@ -69,25 +44,7 @@ void NeuralNetwork::feedForward()
     }
 }
 
-void NeuralNetwork::printToConsole()
-{
-    for (int i = 0; i < this->layers.size(); i++)
-    {
-        std::cout << "Layer " << i << ":\n";
-        Matrix *m = (i == 0) ? this->layers.at(i)->matrixifyVals() : this->layers.at(i)->matrixifyActivatedVals();
-        m->printToConsole();
-        delete m; // Sprzątanie
-
-        std::cout << "===========" << std::endl;
-        if (i < this->layers.size() - 1)
-        {
-            std::cout << "Weight Matrix: " << i << std::endl;
-            this->getWeightMatrix(i)->printToConsole();
-        }
-        std::cout << "===========" << std::endl;
-    }
-}
-
+// Wstawia dane wejściowe (np raycasty) do neuronów pierwszej warstwy (warstwy wejściowej)
 void NeuralNetwork::setCurrentInput(std::vector<double> input)
 {
     this->input = input;
@@ -97,6 +54,7 @@ void NeuralNetwork::setCurrentInput(std::vector<double> input)
     }
 }
 
+// Konstruktor sieci. Na podstawie wektora topology (np. {3, 5, 2} oznacza 3 wejścia, 5 ukrytych, 2 wyjścia) tworzy odpowiednie warstwy oraz macierze wag pomiędzy nimi.
 NeuralNetwork::NeuralNetwork(std::vector<int> topology)
 {
     this->topology = topology;
@@ -115,6 +73,7 @@ NeuralNetwork::NeuralNetwork(std::vector<int> topology)
 
 // --- IMPLEMENTACJA GA ---
 
+// (Dla Algorytmu Genetycznego) Pobiera wszystkie wagi ze wszystkich macierzy i spłaszcza je do jednego długiego wektora. Służy do stworzenia "genotypu" sieci.
 std::vector<double> NeuralNetwork::getWeights() const
 {
     std::vector<double> weights;
@@ -131,6 +90,7 @@ std::vector<double> NeuralNetwork::getWeights() const
     return weights;
 }
 
+// (Dla Algorytmu Genetycznego) Przypisuje wagi z podanego wektora z powrotem do odpowiednich miejsc w macierzach wag sieci. Pozwala "wgrać" mózg wyewoluowanego osobnika.
 void NeuralNetwork::setWeights(const std::vector<double> &weights)
 {
     int k = 0;
@@ -150,6 +110,7 @@ void NeuralNetwork::setWeights(const std::vector<double> &weights)
     }
 }
 
+// Zwraca wektor z wartościami neuronów ostatniej warstwy. Jest to ostateczna decyzja sieci (np obrot w prawo).
 std::vector<double> NeuralNetwork::getOutputs()
 {
     std::vector<double> ret;

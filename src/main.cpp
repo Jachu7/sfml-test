@@ -13,10 +13,10 @@
 #include "siec/NeuralNetwork.h"
 #include "siec/utils/MultiplyMatrix.h"
 
-// === ZOPTYMALIZOWANA KONFIGURACJA DLA STABILNOŚCI ===
-const int POPULATION_SIZE = 100;
-const int MUTATION_RATE = 5;          // Zmniejszone do 5% (precyzja)
-const double MUTATION_STRENGTH = 0.1; // Zmniejszone do 0.1 (mniejszy chaos)
+// Konfiguracja
+const int POPULATION_SIZE = 100;      // ilość rakiet
+const int MUTATION_RATE = 5;          // 5%
+const double MUTATION_STRENGTH = 0.1; // 0-1
 const int LIFETIME = 10000;           // Czas trwania rundy
 
 const double M_PI_VAL = 3.14159265358979323846;
@@ -28,6 +28,7 @@ struct LaserReading
     bool hit;
 };
 
+// Oblicza punkt przecięcia dwóch odcinków. Jest to funkcja matematyczna niezbędna do działania "oczu" (laserów) rakiety – sprawdza, czy promień lasera przecina ścianę przeszkody
 bool getLineIntersection(sf::Vector2f p1, sf::Vector2f p2, sf::Vector2f p3, sf::Vector2f p4, sf::Vector2f &intersection)
 {
     float s1_x = p2.x - p1.x;
@@ -51,6 +52,7 @@ bool getLineIntersection(sf::Vector2f p1, sf::Vector2f p2, sf::Vector2f p3, sf::
     return false;
 }
 
+// konstruktor rakiety
 struct Rocket
 {
     sf::Vector2f velocity = {0.f, 0.f};
@@ -76,8 +78,10 @@ struct Rocket
     const float maxLaserDist = 400.0f;
     std::vector<float> laserAngles = {-90.f, -45.f, -20.f, 0.f, 20.f, 45.f, 90.f, 180.f};
 
+    // topologia sieci neuronowej, 13 wejsc, 8 warstw ukrytych i 3 wyjscia
     const std::vector<int> topology = {13, 8, 3};
 
+    // skalowanie raycastów (laserów) oraz tekstur rakiety (i inicjacja sieci)
     Rocket(const sf::Texture &shipTexture, const sf::Texture &fireTexture, bool initBrain = true)
         : sprite(shipTexture), fireSprite(fireTexture)
     {
@@ -94,6 +98,7 @@ struct Rocket
         }
     }
 
+    // konstruktor kopiujacy zeby tworzyc nowa rakiete
     Rocket(const Rocket &other) : sprite(other.sprite), fireSprite(other.fireSprite), topology(other.topology)
     {
         lasers = other.lasers;
@@ -119,6 +124,7 @@ struct Rocket
         }
     }
 
+    // operator przypisania kopiującego
     Rocket &operator=(const Rocket &other)
     {
         if (this == &other)
@@ -157,6 +163,7 @@ struct Rocket
             delete brain;
     }
 
+    // Przygotowuje rakietę do nowej rundy (pokolenia). Resetuje pozycję, prędkość i flagi życia, ale zachowuje wytrenowany "mózg"
     void reset(sf::Vector2f startPosition, int checkpointsCount)
     {
         dead = false;
@@ -173,6 +180,7 @@ struct Rocket
         visitedCheckpoints.assign(checkpointsCount, false);
     }
 
+    // Odpowiada za podstawową fizykę: dodaje grawitację do prędkości, przesuwa obiekt i wyhamowuje go (tarcie). Zawiera też mechanizm wykrywający "utknięcie" w miejscu (jeśli rakieta się nie rusza, zostaje uśmiercona)
     void updatePhysics()
     {
         if (dead || completed)
@@ -205,6 +213,7 @@ struct Rocket
         }
     }
 
+    // Główna pętla decyzyjna AI. Pobiera dane wejściowe (odczyty laserów, prędkość, kąt do celu), normalizuje je i przepuszcza przez sieć neuronową. Wynik sieci decyduje o obrocie i włączeniu silnika.
     void thinkAndMove(const std::vector<sf::CircleShape> &checkpoints, sf::Vector2f finalTarget)
     {
         if (dead || completed)
@@ -289,6 +298,7 @@ struct Rocket
         }
     }
 
+    // Symuluje działanie czujników odległości. Wypuszcza promienie w różnych kierunkach, sprawdza kolizje z przeszkodami i zapisuje odległość do najbliższej ściany.
     void sense(const std::vector<sf::RectangleShape> &obstacles)
     {
         if (dead || completed)
@@ -336,6 +346,7 @@ struct Rocket
         }
     }
 
+    // Sprawdza, czy rakieta przeleciała przez niebieski punkt kontrolny. Jeśli tak, zalicza go i zmusza algorytm do celowania w kolejny punkt
     void checkCheckpoints(const std::vector<sf::CircleShape> &checkpoints)
     {
         if (dead || completed)
@@ -361,6 +372,7 @@ struct Rocket
         }
     }
 
+    // Sprawdza kolizje fizyczne. Jeśli rakieta uderzy w ścianę to ginie. Jeśli dotknie zielonego celu końcowego – wygrywa (oznaczana jako completed)
     void checkCollision(const std::vector<sf::RectangleShape> &obstacles, sf::Vector2f targetPos)
     {
         if (dead || completed)
@@ -397,7 +409,7 @@ struct Rocket
         }
     }
 
-    // === POPRAWIONA FUNKCJA FITNESS ===
+    // Funkcja oceny (Fitness Function). Oblicza wynik rakiety na koniec życia. Punktuje (w kolejności ważności): zdobyte checkpointy, bliskość do aktualnego celu, ukończenie trasy i szybkość przelotu. Decyduje o tym, kto przekaże geny dalej.
     void calcFitness(const std::vector<sf::CircleShape> &checkpoints, sf::Vector2f finalTarget, sf::Vector2f startPos, int maxLifetime)
     {
         fitness = 0.0;
@@ -435,6 +447,7 @@ struct Rocket
         fitness += totalMovement * 0.1;
     }
 
+    // Rysuje rakietę na ekranie. Jeśli silnik jest włączony, dorysowuje ogień. Najlepsza rakieta w populacji jest wyróżniona kolorem zielonym
     void draw(sf::RenderWindow &win, bool best)
     {
         if (dead && !best)
@@ -462,7 +475,11 @@ double randomRange(double min, double max)
     return min + randomDouble() * (max - min);
 }
 
-// === EWOLUCJA ===
+// Ewolucja -
+// Implementuje Algorytm Genetyczny.
+// Sortuje rakiety od najlepszej do najgorszej.
+// Przepisuje najlepsze jednostki bez zmian do nowej populacji (Elityzm).
+// Tworzy resztę nowej populacji poprzez mieszanie wag dwóch rodziców (Crossover) i losowe zmiany wag (Mutacja).
 std::vector<Rocket> evolve(std::vector<Rocket> &oldPop, sf::Texture &t, sf::Texture &ft, sf::Vector2f startPos, int cpCount)
 {
     std::vector<Rocket> newPop;
@@ -528,13 +545,9 @@ int main()
 {
     auto window = sf::RenderWindow(sf::VideoMode({1000u, 1000u}), "Rakiety AI - Optimized 90%");
     window.setFramerateLimit(0);
-
-    // Upewnij się, że ścieżka do fontu jest poprawna
     sf::Font font;
     if (!font.openFromFile("../../src/Roboto_Condensed-Medium.ttf"))
     {
-        // Fallback jeśli nie ma fontu, żeby program nie crashował
-        // (Opcjonalnie można pominąć)
     }
 
     sf::Text textGen(font);
