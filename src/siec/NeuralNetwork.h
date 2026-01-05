@@ -3,26 +3,39 @@
 
 #include <iostream>
 #include <vector>
+#include <assert.h>
 #include "Matrix.h"
 #include "Layer.h"
 
-class NeuralNetwork {
+class NeuralNetwork
+{
 public:
     NeuralNetwork(std::vector<int> topology);
+    // Destruktor, żeby sprzątać pamięć
+    ~NeuralNetwork();
+
     void setCurrentInput(std::vector<double> input);
     void setCurrentTarget(std::vector<double> target) { this->target = target; };
     void printToConsole();
     void feedForward();
     void setErrors();
 
-    Matrix *getNeuronMatrix(int index){return this->layers.at(index)->matrixifyVals();};
-    Matrix *getActivatedNeuronMatrix(int index){return this->layers.at(index)->matrixifyActivatedVals();};
-    Matrix *getDerivedNeuronMatrix(int index){return this->layers.at(index)->matrixifyDerivedVals();};
-    Matrix *getWeightMatrix(int index){return this->weightMatrices.at(index);};
+    Matrix *getNeuronMatrix(int index) { return this->layers.at(index)->matrixifyVals(); };
+    Matrix *getActivatedNeuronMatrix(int index) { return this->layers.at(index)->matrixifyActivatedVals(); };
+    Matrix *getDerivedNeuronMatrix(int index) { return this->layers.at(index)->matrixifyDerivedVals(); };
+    Matrix *getWeightMatrix(int index) { return this->weightMatrices.at(index); };
 
-    void setNeuronValue(int indexLayer, int indexNeuron, double val){this->layers.at(indexLayer)->setValue(indexNeuron, val);};
-    double getTotalError(){return this->error;};
-    std::vector<double> getErrors(){return this->errors;};
+    void setNeuronValue(int indexLayer, int indexNeuron, double val) { this->layers.at(indexLayer)->setValue(indexNeuron, val); };
+    double getTotalError() { return this->error; };
+    std::vector<double> getErrors() { return this->errors; };
+
+    // --- NOWE METODY DLA ALGORYTMU GENETYCZNEGO ---
+    // Pobiera wszystkie wagi jako jeden długi wektor (chromosom)
+    std::vector<double> getWeights() const;
+    // Wgrywa wagi z wektora do sieci
+    void setWeights(const std::vector<double> &weights);
+    // Zwraca wyjścia ostatniej warstwy (decyzje sieci)
+    std::vector<double> getOutputs();
 
 private:
     int topologySize;
@@ -37,5 +50,4 @@ private:
     std::vector<double> historicalErrors;
 };
 
-
-#endif //CMAKESFMLPROJECT_NEURAL_NETWORK_H
+#endif // CMAKESFMLPROJECT_NEURAL_NETWORK_H

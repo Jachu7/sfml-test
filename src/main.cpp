@@ -4,30 +4,46 @@
 #include <optional>
 #include <limits>
 #include <iostream>
+#include <random>
+#include <algorithm>
+#include <numeric>
 
 #include "siec/Neuron.h"
 #include "siec/Matrix.h"
 #include "siec/NeuralNetwork.h"
 #include "siec/utils/MultiplyMatrix.h"
 
-struct LaserReading {
-    sf::Vector2f endPoint; // Gdzie laser się kończy (do rysowania)
-    float distance;        // Odległość
-    bool hit;              // Czy trafił w przeszkodę
+// === ZOPTYMALIZOWANA KONFIGURACJA DLA STABILNOŚCI ===
+const int POPULATION_SIZE = 100;
+const int MUTATION_RATE = 5;          // Zmniejszone do 5% (precyzja)
+const double MUTATION_STRENGTH = 0.1; // Zmniejszone do 0.1 (mniejszy chaos)
+const int LIFETIME = 10000;           // Czas trwania rundy
+
+const double M_PI_VAL = 3.14159265358979323846;
+
+struct LaserReading
+{
+    sf::Vector2f endPoint;
+    float distance;
+    bool hit;
 };
 
-// Matematyka: Funkcja sprawdzająca przecięcie dwóch odcinków (A-B) i (C-D)
-// Zwraca punkt przecięcia w parametrze 'intersection' i true jeśli się przecinają
-bool getLineIntersection(sf::Vector2f p1, sf::Vector2f p2, sf::Vector2f p3, sf::Vector2f p4, sf::Vector2f& intersection) {
+bool getLineIntersection(sf::Vector2f p1, sf::Vector2f p2, sf::Vector2f p3, sf::Vector2f p4, sf::Vector2f &intersection)
+{
     float s1_x = p2.x - p1.x;
     float s1_y = p2.y - p1.y;
     float s2_x = p4.x - p3.x;
     float s2_y = p4.y - p3.y;
 
-    float s = (-s1_y * (p1.x - p3.x) + s1_x * (p1.y - p3.y)) / (-s2_x * s1_y + s1_x * s2_y);
-    float t = (s2_x * (p1.y - p3.y) - s2_y * (p1.x - p3.x)) / (-s2_x * s1_y + s1_x * s2_y);
+    float denom = (-s2_x * s1_y + s1_x * s2_y);
+    if (std::abs(denom) < 0.0001f)
+        return false;
 
-    if (s >= 0 && s <= 1 && t >= 0 && t <= 1) {
+    float s = (-s1_y * (p1.x - p3.x) + s1_x * (p1.y - p3.y)) / denom;
+    float t = (s2_x * (p1.y - p3.y) - s2_y * (p1.x - p3.x)) / denom;
+
+    if (s >= 0 && s <= 1 && t >= 0 && t <= 1)
+    {
         intersection.x = p1.x + (t * s1_x);
         intersection.y = p1.y + (t * s1_y);
         return true;
@@ -35,90 +51,255 @@ bool getLineIntersection(sf::Vector2f p1, sf::Vector2f p2, sf::Vector2f p3, sf::
     return false;
 }
 
-struct Rocket {
+struct Rocket
+{
     sf::Vector2f velocity = {0.f, 0.f};
     sf::Sprite sprite;
     sf::Sprite fireSprite;
-    std::vector<LaserReading> lasers;   // Rakieta trzyma SWOJE odczyty
+    std::vector<LaserReading> lasers;
+
+    NeuralNetwork *brain = nullptr;
+    double fitness = 0.0;
     bool dead = false;
+    bool completed = false;
     bool isThrusting = false;
 
+    int timeAlive = 0;
+    std::vector<bool> visitedCheckpoints;
+    float bestDistanceToTarget = 999999.f; // Resetowane przy każdym checkpoincie
+    sf::Vector2f lastPosition = {0.f, 0.f};
+    int stuckCounter = 0;
 
-    // Konfiguracja
     const float gravity = 0.02f;
     const float thrustPower = 0.1f;
-    const float rotationSpeed = 1.0f;
+    const float rotationSpeed = 3.0f;
     const float maxLaserDist = 400.0f;
-    std::vector<float> laserAngles = { -90.f, -45.f, 0.f, 45.f, 90.f, 180.f, 135.f, -135.f };
+    std::vector<float> laserAngles = {-90.f, -45.f, -20.f, 0.f, 20.f, 45.f, 90.f, 180.f};
 
-    Rocket(const sf::Texture& shipTexture, const sf::Texture& fireTexture)
+    const std::vector<int> topology = {13, 8, 3};
+
+    Rocket(const sf::Texture &shipTexture, const sf::Texture &fireTexture, bool initBrain = true)
         : sprite(shipTexture), fireSprite(fireTexture)
     {
         lasers.resize(laserAngles.size());
-
-        // Konfiguracja ognia (raz, przy tworzeniu)
-        fireSprite.setOrigin({ 8.f, 2.f }); // Środek ognia
-        fireSprite.setScale({ 2.0f, 2.0f });
-
+        fireSprite.setOrigin({8.f, 2.f});
+        fireSprite.setScale({2.0f, 2.0f});
         sf::FloatRect spriteBounds = sprite.getLocalBounds();
         sprite.setOrigin(spriteBounds.getCenter());
-        sprite.setScale({ 2.0f, 2.0f });
+        sprite.setScale({2.0f, 2.0f});
+
+        if (initBrain)
+        {
+            brain = new NeuralNetwork(topology);
+        }
     }
 
-    void reset(sf::Vector2f startPosition) {
+    Rocket(const Rocket &other) : sprite(other.sprite), fireSprite(other.fireSprite), topology(other.topology)
+    {
+        lasers = other.lasers;
+        velocity = other.velocity;
+        fitness = other.fitness;
+        dead = other.dead;
+        completed = other.completed;
+        isThrusting = other.isThrusting;
+        visitedCheckpoints = other.visitedCheckpoints;
+        timeAlive = other.timeAlive;
+        bestDistanceToTarget = other.bestDistanceToTarget;
+        stuckCounter = other.stuckCounter;
+        lastPosition = other.lastPosition;
+
+        if (other.brain)
+        {
+            brain = new NeuralNetwork(topology);
+            brain->setWeights(other.brain->getWeights());
+        }
+        else
+        {
+            brain = nullptr;
+        }
+    }
+
+    Rocket &operator=(const Rocket &other)
+    {
+        if (this == &other)
+            return *this;
+
+        sprite = other.sprite;
+        fireSprite = other.fireSprite;
+        lasers = other.lasers;
+        velocity = other.velocity;
+        fitness = other.fitness;
+        dead = other.dead;
+        completed = other.completed;
+        isThrusting = other.isThrusting;
+        visitedCheckpoints = other.visitedCheckpoints;
+        timeAlive = other.timeAlive;
+        bestDistanceToTarget = other.bestDistanceToTarget;
+        stuckCounter = other.stuckCounter;
+        lastPosition = other.lastPosition;
+
+        delete brain;
+        if (other.brain)
+        {
+            brain = new NeuralNetwork(topology);
+            brain->setWeights(other.brain->getWeights());
+        }
+        else
+        {
+            brain = nullptr;
+        }
+        return *this;
+    }
+
+    ~Rocket()
+    {
+        if (brain)
+            delete brain;
+    }
+
+    void reset(sf::Vector2f startPosition, int checkpointsCount)
+    {
         dead = false;
+        completed = false;
         isThrusting = false;
         sprite.setPosition(startPosition);
         sprite.setRotation(sf::degrees(0.f));
         velocity = {0.f, 0.f};
+        fitness = 0.0;
+        timeAlive = 0;
+        bestDistanceToTarget = 999999.f;
+        stuckCounter = 0;
+        lastPosition = startPosition;
+        visitedCheckpoints.assign(checkpointsCount, false);
     }
 
-    // Funkcja ruchu i fizyki
-    void update(bool rotateLeft, bool rotateRight, bool thrust) {
-        if (dead) return;
+    void updatePhysics()
+    {
+        if (dead || completed)
+            return;
 
-        isThrusting = thrust;
-
-        // 1. Obroty
-        if (rotateLeft) sprite.rotate(sf::degrees(-rotationSpeed));
-        if (rotateRight) sprite.rotate(sf::degrees(rotationSpeed));
-
-        // 2. Grawitacja
         velocity.y += gravity;
+        sprite.move(velocity);
+        velocity *= 0.99f;
 
-        // 3. Ciąg (Silnik)
-        if (thrust) {
-            float angleRad = (sprite.getRotation().asDegrees() - 90.f) * 3.14159f / 180.f;
-            velocity.x += std::cos(angleRad) * thrustPower; // thrust jest ujemny w Twoim kodzie, tutaj zakładam power jako dodatni wektor
-            velocity.y += std::sin(angleRad) * thrustPower;
+        // Wykrywanie utknięcia
+        if (timeAlive % 100 == 0)
+        {
+            float distMoved = std::sqrt(
+                std::pow(sprite.getPosition().x - lastPosition.x, 2) +
+                std::pow(sprite.getPosition().y - lastPosition.y, 2));
 
-            // --- OBLICZANIE POZYCJI OGNIA (Wewnątrz rakiety!) ---
-            float offsetDist = 32.0f; // Jak daleko za rakietą ma być ogień
-            // Odejmujemy cos/sin, żeby ogień był Z TYŁU (przeciwnie do zwrotu rakiety)
-            float fireX = sprite.getPosition().x - std::cos(angleRad) * offsetDist;
-            float fireY = sprite.getPosition().y - std::sin(angleRad) * offsetDist;
+            if (distMoved < 20.0f)
+            {
+                stuckCounter++;
+                if (stuckCounter >= 3)
+                {
+                    dead = true;
+                }
+            }
+            else
+            {
+                stuckCounter = 0;
+            }
+            lastPosition = sprite.getPosition();
+        }
+    }
 
-            fireSprite.setPosition({ fireX, fireY });
-            fireSprite.setRotation(sprite.getRotation());
+    void thinkAndMove(const std::vector<sf::CircleShape> &checkpoints, sf::Vector2f finalTarget)
+    {
+        if (dead || completed)
+            return;
+
+        sf::Vector2f currentTarget = finalTarget;
+        for (size_t i = 0; i < checkpoints.size(); ++i)
+        {
+            if (!visitedCheckpoints[i])
+            {
+                currentTarget = checkpoints[i].getPosition();
+                break;
+            }
         }
 
-        // 4. Aplikacja ruchu
-        sprite.move(velocity);
+        std::vector<double> inputs;
 
-        // 5. Tłumienie (opór powietrza)
-        velocity *= 0.99f;
+        // Lasery [-1, 1]
+        for (const auto &l : lasers)
+        {
+            double normalized = l.distance / maxLaserDist;
+            inputs.push_back(2.0 * normalized - 1.0);
+        }
+
+        // Prędkość [-1, 1]
+        double vx_norm = std::max(-1.0, std::min(1.0, velocity.x / 4.0));
+        double vy_norm = std::max(-1.0, std::min(1.0, velocity.y / 4.0));
+        inputs.push_back(vx_norm);
+        inputs.push_back(vy_norm);
+
+        // Nawigacja
+        double dx = currentTarget.x - sprite.getPosition().x;
+        double dy = currentTarget.y - sprite.getPosition().y;
+        double distToTarget = std::sqrt(dx * dx + dy * dy);
+
+        // KLUCZOWE: Śledzimy najlepszy dystans do AKTUALNEGO celu
+        if (distToTarget < bestDistanceToTarget)
+        {
+            bestDistanceToTarget = distToTarget;
+        }
+
+        double dist_normalized = std::min(1.0, distToTarget / 1500.0);
+        inputs.push_back(2.0 * dist_normalized - 1.0);
+
+        double angleToTarget = std::atan2(dy, dx);
+        double currentAngle = (sprite.getRotation().asDegrees() - 90.0) * (M_PI_VAL / 180.0);
+        double angleDiff = angleToTarget - currentAngle;
+
+        while (angleDiff <= -M_PI_VAL)
+            angleDiff += 2 * M_PI_VAL;
+        while (angleDiff > M_PI_VAL)
+            angleDiff -= 2 * M_PI_VAL;
+
+        inputs.push_back(angleDiff / M_PI_VAL);
+        inputs.push_back(0.0); // Bias
+
+        brain->setCurrentInput(inputs);
+        brain->feedForward();
+        std::vector<double> outputs = brain->getOutputs();
+
+        bool rotLeft = outputs[0] > 0.0;
+        bool rotRight = outputs[1] > 0.0;
+        bool thrust = outputs[2] > 0.0;
+
+        isThrusting = thrust;
+        if (rotLeft)
+            sprite.rotate(sf::degrees(-rotationSpeed));
+        if (rotRight)
+            sprite.rotate(sf::degrees(rotationSpeed));
+
+        if (thrust)
+        {
+            float angleRad = (sprite.getRotation().asDegrees() - 90.f) * 3.14159f / 180.f;
+            velocity.x += std::cos(angleRad) * thrustPower;
+            velocity.y += std::sin(angleRad) * thrustPower;
+
+            float offsetDist = 32.0f;
+            float fireX = sprite.getPosition().x - std::cos(angleRad) * offsetDist;
+            float fireY = sprite.getPosition().y - std::sin(angleRad) * offsetDist;
+            fireSprite.setPosition({fireX, fireY});
+            fireSprite.setRotation(sprite.getRotation());
+        }
     }
 
-    // Funkcja "patrzenia" (Lasery)
-    void sense(const std::vector<sf::RectangleShape>& obstacles) {
-        if (dead) return;
+    void sense(const std::vector<sf::RectangleShape> &obstacles)
+    {
+        if (dead || completed)
+            return;
 
         sf::Vector2f origin = sprite.getPosition();
         float baseAngle = sprite.getRotation().asDegrees() - 90.f;
 
-        for (size_t i = 0; i < laserAngles.size(); ++i) {
+        for (size_t i = 0; i < laserAngles.size(); ++i)
+        {
             float rad = (baseAngle + laserAngles[i]) * 3.14159f / 180.f;
-
             sf::Vector2f rayEnd;
             rayEnd.x = origin.x + std::cos(rad) * maxLaserDist;
             rayEnd.y = origin.y + std::sin(rad) * maxLaserDist;
@@ -127,218 +308,393 @@ struct Rocket {
             sf::Vector2f closestPoint = rayEnd;
             bool hitSomething = false;
 
-            // Sprawdzanie przeszkód (Twoja logika przeniesiona tutaj)
-            for (const auto& p : obstacles) {
+            for (const auto &p : obstacles)
+            {
                 sf::FloatRect b = p.getGlobalBounds();
-                // ... (Tutaj wstawiasz logikę getLineIntersection dla 4 ścian) ...
-                // Dla czytelności skróciłem ten fragment, ale kopiujesz go z maina
-                // Używając getLineIntersection zdefiniowanego globalnie
                 std::vector<std::pair<sf::Vector2f, sf::Vector2f>> walls = {
-                     {{b.position.x, b.position.y}, {b.position.x + b.size.x, b.position.y}},
-                     {{b.position.x + b.size.x, b.position.y}, {b.position.x + b.size.x, b.position.y + b.size.y}},
-                     {{b.position.x + b.size.x, b.position.y + b.size.y}, {b.position.x, b.position.y + b.size.y}},
-                     {{b.position.x, b.position.y + b.size.y}, {b.position.x, b.position.y}}
-                };
+                    {{b.position.x, b.position.y}, {b.position.x + b.size.x, b.position.y}},
+                    {{b.position.x + b.size.x, b.position.y}, {b.position.x + b.size.x, b.position.y + b.size.y}},
+                    {{b.position.x + b.size.x, b.position.y + b.size.y}, {b.position.x, b.position.y + b.size.y}},
+                    {{b.position.x, b.position.y + b.size.y}, {b.position.x, b.position.y}}};
 
                 sf::Vector2f hitPoint;
-                for(auto& wall : walls){
-                    if(getLineIntersection(origin, rayEnd, wall.first, wall.second, hitPoint)){
-                         float dist = std::sqrt(std::pow(hitPoint.x - origin.x, 2) + std::pow(hitPoint.y - origin.y, 2));
-                         if(dist < closestDist){
-                             closestDist = dist;
-                             closestPoint = hitPoint;
-                             hitSomething = true;
-                         }
+                for (auto &wall : walls)
+                {
+                    if (getLineIntersection(origin, rayEnd, wall.first, wall.second, hitPoint))
+                    {
+                        float dist = std::sqrt(std::pow(hitPoint.x - origin.x, 2) + std::pow(hitPoint.y - origin.y, 2));
+                        if (dist < closestDist)
+                        {
+                            closestDist = dist;
+                            closestPoint = hitPoint;
+                            hitSomething = true;
+                        }
                     }
                 }
             }
-            // Zapisujemy wynik W STRUKTURZE
-            lasers[i] = { closestPoint, closestDist, hitSomething };
+            lasers[i] = {closestPoint, closestDist, hitSomething};
         }
     }
 
-    // Funkcja sprawdzania kolizji (śmierć)
-    void checkCollision(const std::vector<sf::RectangleShape>& obstacles) {
-        if (dead) return;
-        for (const auto& p : obstacles) {
-            if (sprite.getGlobalBounds().findIntersection(p.getGlobalBounds())) {
-                dead = true; // Rakieta oznacza samą siebie jako martwą
+    void checkCheckpoints(const std::vector<sf::CircleShape> &checkpoints)
+    {
+        if (dead || completed)
+            return;
+
+        if (visitedCheckpoints.size() != checkpoints.size())
+        {
+            visitedCheckpoints.resize(checkpoints.size(), false);
+        }
+
+        sf::FloatRect myBounds = sprite.getGlobalBounds();
+        for (size_t i = 0; i < checkpoints.size(); ++i)
+        {
+            if (visitedCheckpoints[i])
+                continue;
+            if (myBounds.findIntersection(checkpoints[i].getGlobalBounds()))
+            {
+                visitedCheckpoints[i] = true;
+                // === KLUCZOWA POPRAWKA ===
+                // Resetujemy dystans, aby zmusić rakietę do lotu do NOWEGO celu
+                bestDistanceToTarget = 999999.f;
             }
         }
     }
 
-    // Helper do rysowania laserów
-    void drawLasers(sf::RenderWindow& win) {
-        for (const auto& laser : lasers) {
-             sf::Color color = laser.hit ? sf::Color::Red : sf::Color(200, 200, 200);
-             sf::Vertex line[] = {
-                sf::Vertex{sprite.getPosition(), color},
-                sf::Vertex{laser.endPoint, color}
-             };
-             win.draw(line, 2, sf::PrimitiveType::Lines);
+    void checkCollision(const std::vector<sf::RectangleShape> &obstacles, sf::Vector2f targetPos)
+    {
+        if (dead || completed)
+            return;
+
+        for (const auto &p : obstacles)
+        {
+            if (sprite.getGlobalBounds().findIntersection(p.getGlobalBounds()))
+            {
+                dead = true;
+            }
+        }
+        // Kolizja z granicami ekranu
+        if (sprite.getPosition().x < 0 || sprite.getPosition().x > 1000 ||
+            sprite.getPosition().y < 0 || sprite.getPosition().y > 1000)
+        {
+            dead = true;
+        }
+
+        float dist = std::sqrt(std::pow(sprite.getPosition().x - targetPos.x, 2) +
+                               std::pow(sprite.getPosition().y - targetPos.y, 2));
+        if (dist < 50.0f)
+        {
+            bool allVisited = true;
+            for (auto v : visitedCheckpoints)
+                if (!v)
+                    allVisited = false;
+
+            if (allVisited)
+            {
+                completed = true;
+                dead = true;
+            }
         }
     }
-    void draw(sf::RenderWindow& win) {
-        // 1. Rysuj ogień (tylko jak wciśnięty gaz i nie martwa)
-        if (isThrusting && !dead) {
+
+    // === POPRAWIONA FUNKCJA FITNESS ===
+    void calcFitness(const std::vector<sf::CircleShape> &checkpoints, sf::Vector2f finalTarget, sf::Vector2f startPos, int maxLifetime)
+    {
+        fitness = 0.0;
+
+        // 1. Checkpointy (Baza sukcesu) - 10,000 pkt za każdy
+        int checkpointCount = 0;
+        for (bool visited : visitedCheckpoints)
+        {
+            if (visited)
+                checkpointCount++;
+        }
+        fitness += checkpointCount * 10000.0;
+
+        // 2. Dystans do AKTUALNEGO celu (Max 2000 pkt)
+        // Dzięki temu, że max za dystans (2000) < bonus za checkpoint (10000),
+        // rakieta, która zdobyła checkpoint zawsze wygrywa z tą, która jest tylko blisko.
+        if (bestDistanceToTarget < 99999.f)
+        {
+            double distReward = std::max(0.0, 2000.0 - (bestDistanceToTarget * 2.0));
+            fitness += distReward;
+        }
+
+        // 3. Bonus za ukończenie i szybkość
+        if (completed)
+        {
+            fitness += 20000.0;
+            // Im szybciej, tym więcej punktów
+            fitness += ((double)maxLifetime / (double)(timeAlive + 1)) * 5000.0;
+        }
+
+        // 4. Mikro-nagroda za ruch (żeby nie kręciły się w miejscu)
+        float totalMovement = std::sqrt(
+            std::pow(sprite.getPosition().x - startPos.x, 2) +
+            std::pow(sprite.getPosition().y - startPos.y, 2));
+        fitness += totalMovement * 0.1;
+    }
+
+    void draw(sf::RenderWindow &win, bool best)
+    {
+        if (dead && !best)
+            return;
+        if (isThrusting && !dead)
             win.draw(fireSprite);
-        }
-
-        // 2. Rysuj rakietę
+        if (best)
+            sprite.setColor(sf::Color::Green);
+        else
+            sprite.setColor(sf::Color(255, 255, 255, 100));
         win.draw(sprite);
-
-        // 3. Rysuj lasery
-        for (const auto& laser : lasers) {
-            sf::Color color = laser.hit ? sf::Color::Red : sf::Color(200, 200, 200);
-            sf::Vertex line[] = {
-                sf::Vertex{sprite.getPosition(), color},
-                sf::Vertex{laser.endPoint, color}
-            };
-            win.draw(line, 2, sf::PrimitiveType::Lines);
-        }
     }
 };
 
+double randomDouble()
+{
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_real_distribution<> dis(0.0, 1.0);
+    return dis(gen);
+}
+
+double randomRange(double min, double max)
+{
+    return min + randomDouble() * (max - min);
+}
+
+// === EWOLUCJA ===
+std::vector<Rocket> evolve(std::vector<Rocket> &oldPop, sf::Texture &t, sf::Texture &ft, sf::Vector2f startPos, int cpCount)
+{
+    std::vector<Rocket> newPop;
+    newPop.reserve(POPULATION_SIZE);
+
+    std::sort(oldPop.begin(), oldPop.end(), [](const Rocket &a, const Rocket &b)
+              { return a.fitness > b.fitness; });
+
+    // 1. ELITYZM - Zwiększony do 8, aby zachować stabilność
+    int eliteCount = 8;
+    for (int i = 0; i < std::min(eliteCount, (int)oldPop.size()); ++i)
+    {
+        Rocket elita(t, ft, true);
+        elita.brain->setWeights(oldPop[i].brain->getWeights());
+        elita.reset(startPos, cpCount);
+        newPop.push_back(elita);
+    }
+
+    // 2. RESZTA POPULACJI (Crossover + Mutacja)
+    while (newPop.size() < POPULATION_SIZE)
+    {
+        // Selekcja Turniejowa
+        int best1 = rand() % oldPop.size();
+        for (int i = 0; i < 5; ++i)
+        { // Turniej 5 osobników
+            int cand = rand() % oldPop.size();
+            if (oldPop[cand].fitness > oldPop[best1].fitness)
+                best1 = cand;
+        }
+        int best2 = rand() % oldPop.size();
+        for (int i = 0; i < 5; ++i)
+        {
+            int cand = rand() % oldPop.size();
+            if (oldPop[cand].fitness > oldPop[best2].fitness)
+                best2 = cand;
+        }
+
+        Rocket child(t, ft, true);
+        std::vector<double> genes1 = oldPop[best1].brain->getWeights();
+        std::vector<double> genes2 = oldPop[best2].brain->getWeights();
+        std::vector<double> childGenes;
+
+        for (size_t i = 0; i < genes1.size(); ++i)
+        {
+            double gene = (rand() % 2 == 0) ? genes1[i] : genes2[i];
+            if ((rand() % 100) < MUTATION_RATE)
+            {
+                gene += randomRange(-MUTATION_STRENGTH, MUTATION_STRENGTH);
+                gene = std::max(-1.0, std::min(1.0, gene));
+            }
+            childGenes.push_back(gene);
+        }
+
+        child.brain->setWeights(childGenes);
+        child.reset(startPos, cpCount);
+        newPop.push_back(child);
+    }
+
+    return newPop;
+}
+
 int main()
 {
-    // config
-    bool startowy = true;
-    bool nauka = false;
-    auto window = sf::RenderWindow(sf::VideoMode({ 1000u, 1000u }), "Rakiety AI");
-    window.setFramerateLimit(144);
-    sf::Font font("../../src/Roboto_Condensed-Medium.ttf"); // Upewnij się, że ścieżka jest poprawna
+    auto window = sf::RenderWindow(sf::VideoMode({1000u, 1000u}), "Rakiety AI - Optimized 90%");
+    window.setFramerateLimit(0);
 
-    // tekst
-    sf::Text text(font);
-    text.setString("Rakietowy algorytm ai");
-    text.setCharacterSize(36);
-    text.setFillColor(sf::Color::Black);
-    sf::FloatRect textBounds = text.getLocalBounds();
-    text.setOrigin(textBounds.getCenter());
-    text.setPosition({ 500.f, 400.f });
+    // Upewnij się, że ścieżka do fontu jest poprawna
+    sf::Font font;
+    if (!font.openFromFile("../../src/Roboto_Condensed-Medium.ttf"))
+    {
+        // Fallback jeśli nie ma fontu, żeby program nie crashował
+        // (Opcjonalnie można pominąć)
+    }
 
-    // guzik
-    sf::RectangleShape button({ 300.f, 60.f });
-    button.setFillColor(sf::Color(70, 130, 180));
-    button.setOrigin(button.getLocalBounds().getCenter());
-    button.setPosition({ 500.f, 480.f });
-    sf::Text buttonText(font);
-    buttonText.setString(L"Rozpocznij naukę latania!");
-    buttonText.setCharacterSize(28);
-    buttonText.setFillColor(sf::Color::White);
-    buttonText.setOrigin(buttonText.getLocalBounds().getCenter());
-    buttonText.setPosition(button.getPosition());
+    sf::Text textGen(font);
+    textGen.setCharacterSize(24);
+    textGen.setFillColor(sf::Color::Black);
+    textGen.setPosition({10.f, 10.f});
 
-    // cel
-    sf::CircleShape c({95.f});
-    c.setFillColor(sf::Color(0,255,0));
-    c.setPosition({20.f, 20.f});
-
-    // checkpointy
-    sf::CircleShape ch1({70.f});
-    ch1.setFillColor(sf::Color(100,150,200));
-    ch1.setPosition({530.f, 500.f});
-
-    sf::CircleShape ch2({70.f});
-    ch2.setFillColor(sf::Color(100,150,200));
-    ch2.setPosition({530.f, 270.f});
-
-    sf::CircleShape ch3({70.f});
-    ch3.setFillColor(sf::Color(100,150,200));
-    ch3.setPosition({530.f, 70.f});
-
-    // przeszkody
     std::vector<sf::RectangleShape> przeszkody;
-    auto dodajPrzeszkode = [&](sf::Vector2f size, sf::Vector2f pos) {
+    auto dodajPrzeszkode = [&](sf::Vector2f size, sf::Vector2f pos)
+    {
         sf::RectangleShape p(size);
         p.setFillColor(sf::Color::Black);
         p.setPosition(pos);
         przeszkody.push_back(p);
     };
 
-    dodajPrzeszkode({ 400.f, 30.f }, { 600.f, 420.f });
-    dodajPrzeszkode({ 600.f, 30.f }, { 0.f, 220.f });
-    dodajPrzeszkode({ 600.f, 30.f }, { 0.f, 720.f });
-    dodajPrzeszkode({ 1000.f, 10.f }, { 0.f, 0.f });     // Sufit
-    dodajPrzeszkode({ 1000.f, 10.f }, { 0.f, 990.f });   // Podłoga
-    dodajPrzeszkode({ 10.f, 1000.f }, { 0.f, 0.f });     // Lewa ściana
-    dodajPrzeszkode({ 10.f, 1000.f }, { 990.f, 0.f });   // Prawa ściana
+    dodajPrzeszkode({600.f, 20.f}, {400.f, 450.f});
+    dodajPrzeszkode({600.f, 20.f}, {0.f, 220.f});
+    dodajPrzeszkode({600.f, 20.f}, {0.f, 720.f});
+    dodajPrzeszkode({1000.f, 10.f}, {0.f, 0.f});
+    dodajPrzeszkode({1000.f, 10.f}, {0.f, 990.f});
+    dodajPrzeszkode({10.f, 1000.f}, {0.f, 0.f});
+    dodajPrzeszkode({10.f, 1000.f}, {990.f, 0.f});
+
+    std::vector<sf::CircleShape> checkpoints;
+    auto dodajCheckpoint = [&](sf::Vector2f pos)
+    {
+        sf::CircleShape ch({70.f});
+        ch.setFillColor(sf::Color(100, 150, 200, 150));
+        ch.setPosition(pos);
+        checkpoints.push_back(ch);
+    };
+
+    dodajCheckpoint({530.f, 520.f});
+    dodajCheckpoint({600.f, 270.f});
+    // dodajCheckpoint({530.f, 50.f});
+
+    sf::CircleShape cel({50.f});
+    cel.setFillColor(sf::Color::Green);
+    cel.setOrigin({50.f, 50.f});
+    cel.setPosition({100.f, 100.f});
 
     sf::Texture texture;
-    if (!texture.loadFromFile("../../src/rakieta.png")) {}
+    if (!texture.loadFromFile("../../src/rakieta.png"))
+        return -1;
     sf::Texture fireTexture;
-    if (!fireTexture.loadFromFile("../../src/ogien.png")) {}
+    if (!fireTexture.loadFromFile("../../src/ogien.png"))
+        return -1;
 
-    Rocket gracz(texture, fireTexture);
-    sf::Vector2f startPos = { 900.f, 900.f };
-    gracz.reset(startPos);
+    sf::Vector2f startPos = {100.f, 900.f};
+
+    std::vector<Rocket> population;
+    for (int i = 0; i < POPULATION_SIZE; ++i)
+    {
+        Rocket r(texture, fireTexture, true);
+        r.reset(startPos, checkpoints.size());
+        population.push_back(r);
+    }
+
+    int generation = 1;
+    int timer = 0;
 
     while (window.isOpen())
     {
         while (const std::optional event = window.pollEvent())
         {
             if (event->is<sf::Event::Closed>())
-            {
                 window.close();
-            }
-            if (event->is<sf::Event::MouseButtonPressed>()) {
-                sf::Vector2f mousePos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
-                if (button.getGlobalBounds().contains(mousePos)) {
-                    startowy = false;
-                    nauka = true;
-                }
+        }
+
+        bool allDead = true;
+        for (auto &rocket : population)
+        {
+            if (!rocket.dead && !rocket.completed)
+            {
+                rocket.timeAlive++;
+                rocket.sense(przeszkody);
+                rocket.checkCheckpoints(checkpoints);
+                rocket.thinkAndMove(checkpoints, cel.getPosition());
+                rocket.updatePhysics();
+                rocket.checkCollision(przeszkody, cel.getPosition());
+                allDead = false;
             }
         }
 
-        if (nauka) {
-            // 1. Pobieranie wejścia (w przyszłości tutaj wepniesz sieć neuronową)
-            bool left = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left);
-            bool right = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right);
-            bool space = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space);
+        timer++;
 
-            // 2. Aktualizacja rakiety (cała logika w środku!)
-            gracz.update(left, right, space);
-            gracz.checkCollision(przeszkody);
-            gracz.sense(przeszkody); // Rakieta "rozgląda się"
+        if (allDead || timer > LIFETIME)
+        {
+            double maxFit = -std::numeric_limits<double>::infinity();
+            double sumFit = 0.0;
+            int completedCount = 0;
+            int maxCheckpoints = 0;
 
-            if (gracz.dead) {
-                gracz.reset(startPos);
+            for (auto &r : population)
+            {
+                r.calcFitness(checkpoints, cel.getPosition(), startPos, LIFETIME);
+                if (r.fitness > maxFit)
+                    maxFit = r.fitness;
+                sumFit += r.fitness;
+                if (r.completed)
+                    completedCount++;
+
+                int cpCount = 0;
+                for (bool v : r.visitedCheckpoints)
+                    if (v)
+                        cpCount++;
+                maxCheckpoints = std::max(maxCheckpoints, cpCount);
             }
+
+            std::cout << "=== GEN " << generation << " ===" << std::endl;
+            std::cout << "  Max Fitness: " << (long)maxFit << std::endl;
+            std::cout << "  Ukończone: " << completedCount << "/" << POPULATION_SIZE << std::endl;
+            std::cout << "  Max CP: " << maxCheckpoints << "/2" << std::endl;
+
+            population = evolve(population, texture, fireTexture, startPos, checkpoints.size());
+            generation++;
+            timer = 0;
         }
 
-        // rysowanie
         window.clear(sf::Color::White);
-        if (startowy) {
-            window.draw(text);
-            window.draw(button);
-            window.draw(buttonText);
+        for (const auto &cp : checkpoints)
+            window.draw(cp);
+        window.draw(cel);
+        for (const auto &p : przeszkody)
+            window.draw(p);
+
+        // Znajdź najlepszą do rysowania (żywą, a jak nie ma to martwą z najlepszym wynikiem)
+        int bestIdx = 0;
+        double bestScore = -1.0;
+
+        // Prostym sposobem wizualizacji jest pokazanie tej, która ma najwięcej CP
+        // i jest najbliżej celu (liczone na bieżąco dla wizualizacji)
+        for (size_t i = 0; i < population.size(); ++i)
+        {
+            if (population[i].dead)
+                continue;
+
+            int cp = 0;
+            for (auto v : population[i].visitedCheckpoints)
+                if (v)
+                    cp++;
+
+            // Prosta heurystyka do wyboru "kamery"
+            double score = cp * 10000.0 - population[i].bestDistanceToTarget;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestIdx = i;
+            }
         }
-        if (nauka) {
-            window.draw(c);
-            window.draw(ch1);
-            window.draw(ch2);
-            window.draw(ch3);
-            gracz.draw(window);
-            for (const auto& p : przeszkody) window.draw(p);
+
+        for (size_t i = 0; i < population.size(); ++i)
+        {
+            population[i].draw(window, (i == bestIdx));
         }
+
+        textGen.setString("Gen: " + std::to_string(generation) + " | Step: " + std::to_string(timer));
+        window.draw(textGen);
         window.display();
     }
-
-    std::vector<int> topology;
-    topology.push_back(3);
-    topology.push_back(2);
-    topology.push_back(3);
-
-    std::vector<double> input;
-    input.push_back(1);
-    input.push_back(0);
-    input.push_back(1);
-
-    NeuralNetwork *nn = new NeuralNetwork(topology);
-    nn->setCurrentInput(input);
-    nn->setCurrentTarget(input);
-    nn->feedForward();
-    nn->printToConsole();
-    std::cout<< "Total Error:" << nn->getTotalError() << std::endl;
-
+    return 0;
 }
