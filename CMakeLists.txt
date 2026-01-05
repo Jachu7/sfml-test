@@ -21,9 +21,7 @@ add_executable(main src/main.cpp
         src/siec/Matrix.cpp
         src/siec/NeuralNetwork.h
         src/siec/NeuralNetwork.cpp
-        src/siec/utils/MatrixToVector.h
         src/siec/utils/MultiplyMatrix.h
-        src/siec/utils/MultiplyMatrix.cpp
-        src/siec/utils/MatrixToVector.cpp)
+        src/siec/utils/MultiplyMatrix.cpp)
 target_compile_features(main PRIVATE cxx_std_17)
 target_link_libraries(main PRIVATE SFML::Graphics)

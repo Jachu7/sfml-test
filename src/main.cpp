@@ -568,9 +568,9 @@ int main()
         checkpoints.push_back(ch);
     };
 
-    dodajCheckpoint({530.f, 520.f});
-    dodajCheckpoint({600.f, 270.f});
-    // dodajCheckpoint({530.f, 50.f});
+    dodajCheckpoint({700.f, 620.f});
+    dodajCheckpoint({100.f, 430.f});
+    dodajCheckpoint({700.f, 130.f});
 
     sf::CircleShape cel({50.f});
     cel.setFillColor(sf::Color::Green);
@@ -648,7 +648,7 @@ int main()
             std::cout << "=== GEN " << generation << " ===" << std::endl;
             std::cout << "  Max Fitness: " << (long)maxFit << std::endl;
             std::cout << "  Ukończone: " << completedCount << "/" << POPULATION_SIZE << std::endl;
-            std::cout << "  Max CP: " << maxCheckpoints << "/2" << std::endl;
+            std::cout << "  Max CP: " << maxCheckpoints << "/3" << std::endl;
 
             population = evolve(population, texture, fireTexture, startPos, checkpoints.size());
             generation++;
