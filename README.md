@@ -125,10 +125,34 @@ The easiest way to build and run this project on Windows is using **CLion** (Jet
 
 ## 📂 Project Structure
 
+```
+src/
+├── main.cpp              # Main simulation loop, SFML rendering
+├── Rocket.h              # Rocket agent: physics, sensors, fitness
+├── GeneticAlgorithm.h    # Evolution: selection, crossover, mutation
+├── LaserReading.h        # Laser sensor data structure
+├── Utils.h               # Math utilities (line intersection, random)
+├── assets/
+│   └── Roboto_Condensed-Medium.ttf   # UI font
+├── img/
+│   ├── rakieta.png       # Rocket sprite
+│   └── ogien.png         # Thrust flame sprite
+└── siec/                 # Neural Network Library
+    ├── NeuralNetwork.h/cpp   # Network topology & feedforward
+    ├── Layer.h/cpp           # Layer of neurons
+    ├── Neuron.h/cpp          # Single neuron with activation
+    ├── Matrix.h/cpp          # Matrix operations for weights
+    └── utils/
+        └── MultiplyMatrix.h/cpp  # Matrix multiplication utility
+```
+
 ### Core Components
 
--   **main.cpp:** Contains the main simulation loop, the Genetic Algorithm logic (evolution, mutation, crossover), and SFML rendering
--   **Rocket (main.cpp struct):** Represents an agent. Handles physics, sensory input (lasers), and fitness calculation
+-   **main.cpp:** Main simulation loop and SFML rendering
+-   **Rocket.h:** Agent structure with physics, raycasting sensors, neural network brain, and fitness calculation
+-   **GeneticAlgorithm.h:** Implements evolution with elitism, tournament selection, crossover, and mutation
+-   **LaserReading.h:** Data structure for laser sensor readings
+-   **Utils.h:** Helper functions for line intersection detection and random number generation
 
 ### Neural Network Library (`/siec` folder)
 
