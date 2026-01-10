@@ -3,6 +3,7 @@
 
 #include <SFML/Graphics.hpp>
 
+// Struktura przechowująca wynik odczytu laseru
 struct LaserReading
 {
     sf::Vector2f endPoint;

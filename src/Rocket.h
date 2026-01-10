@@ -14,28 +14,33 @@
 #include "LaserReading.h"
 #include "Utils.h"
 
+// stała do obliczen
 const double M_PI_VAL = 3.14159265358979323846;
 
-// konstruktor rakiety
+// struktura rakiety
 struct Rocket
 {
+    // konfiguracja
     sf::Vector2f velocity = {0.f, 0.f};
     sf::Sprite sprite;
     sf::Sprite fireSprite;
     std::vector<LaserReading> lasers;
 
+    // stan
     NeuralNetwork *brain = nullptr;
     double fitness = 0.0;
     bool dead = false;
     bool completed = false;
     bool isThrusting = false;
 
+    // statystyki
     int timeAlive = 0;
     std::vector<bool> visitedCheckpoints;
     float bestDistanceToTarget = 999999.f; // Resetowane przy każdym checkpoincie
     sf::Vector2f lastPosition = {0.f, 0.f};
     int stuckCounter = 0;
 
+    // parametry fizyczne
     const float gravity = 0.02f;
     const float thrustPower = 0.1f;
     const float rotationSpeed = 3.0f;
@@ -121,13 +126,14 @@ struct Rocket
         return *this;
     }
 
+    // destruktor
     ~Rocket()
     {
         if (brain)
             delete brain;
     }
 
-    // Przygotowuje rakietę do nowej rundy (pokolenia). Resetuje pozycję, prędkość i flagi życia, ale zachowuje wytrenowany "mózg"
+    // resetuje rakietę do nowej rundy (pokolenia). Resetuje pozycję, prędkość i flagi życia, ale zachowuje wytrenowany "mózg"
     void reset(sf::Vector2f startPosition, int checkpointsCount)
     {
         dead = false;
@@ -154,7 +160,7 @@ struct Rocket
         sprite.move(velocity);
         velocity *= 0.99f;
 
-        // Wykrywanie utknięcia
+        // wykrywanie utknięcia
         if (timeAlive % 100 == 0)
         {
             float distMoved = std::sqrt(
@@ -177,7 +183,7 @@ struct Rocket
         }
     }
 
-    // Główna pętla decyzyjna AI. Pobiera dane wejściowe (odczyty laserów, prędkość, kąt do celu), normalizuje je i przepuszcza przez sieć neuronową. Wynik sieci decyduje o obrocie i włączeniu silnika.
+    // główna pętla decyzyjna AI. pobiera dane wejściowe (odczyty laserów, prędkość, kąt do celu), normalizuje je i przepuszcza przez sieć neuronową. wynik sieci decyduje o obrocie i włączeniu silnika.
     void thinkAndMove(const std::vector<sf::CircleShape> &checkpoints, sf::Vector2f finalTarget)
     {
         if (dead || completed)
@@ -195,14 +201,14 @@ struct Rocket
 
         std::vector<double> inputs;
 
-        // Lasery [-1, 1]
+        // lasery [-1, 1]
         for (const auto &l : lasers)
         {
             double normalized = l.distance / maxLaserDist;
             inputs.push_back(2.0 * normalized - 1.0);
         }
 
-        // Prędkość [-1, 1]
+        // prędkość [-1, 1]
         double vx_norm = std::max(-1.0, std::min(1.0, velocity.x / 4.0));
         double vy_norm = std::max(-1.0, std::min(1.0, velocity.y / 4.0));
         inputs.push_back(vx_norm);
@@ -213,26 +219,30 @@ struct Rocket
         double dy = currentTarget.y - sprite.getPosition().y;
         double distToTarget = std::sqrt(dx * dx + dy * dy);
 
-        // KLUCZOWE: Śledzimy najlepszy dystans do AKTUALNEGO celu
+        // kluczowe: śledzimy najlepszy dystans do aktualnego celu
         if (distToTarget < bestDistanceToTarget)
         {
             bestDistanceToTarget = distToTarget;
         }
 
+        // dystans do celu [-1, 1]
         double dist_normalized = std::min(1.0, distToTarget / 1500.0);
         inputs.push_back(2.0 * dist_normalized - 1.0);
 
+        // kąt do celu [-pi, pi]
         double angleToTarget = std::atan2(dy, dx);
         double currentAngle = (sprite.getRotation().asDegrees() - 90.0) * (M_PI_VAL / 180.0);
         double angleDiff = angleToTarget - currentAngle;
 
+        // normalizacja kąta
         while (angleDiff <= -M_PI_VAL)
             angleDiff += 2 * M_PI_VAL;
         while (angleDiff > M_PI_VAL)
             angleDiff -= 2 * M_PI_VAL;
 
+
         inputs.push_back(angleDiff / M_PI_VAL);
-        inputs.push_back(0.0); // Bias
+        inputs.push_back(0.0); // bias
 
         brain->setCurrentInput(inputs);
         brain->feedForward();
@@ -242,12 +252,14 @@ struct Rocket
         bool rotRight = outputs[1] > 0.0;
         bool thrust = outputs[2] > 0.0;
 
+        // sterowanie
         isThrusting = thrust;
         if (rotLeft)
             sprite.rotate(sf::degrees(-rotationSpeed));
         if (rotRight)
             sprite.rotate(sf::degrees(rotationSpeed));
 
+        // ruch
         if (thrust)
         {
             float angleRad = (sprite.getRotation().asDegrees() - 90.f) * 3.14159f / 180.f;
@@ -262,7 +274,7 @@ struct Rocket
         }
     }
 
-    // Symuluje działanie czujników odległości. Wypuszcza promienie w różnych kierunkach, sprawdza kolizje z przeszkodami i zapisuje odległość do najbliższej ściany.
+    // symuluje działanie czujników odległości. wypuszcza promienie w różnych kierunkach, sprawdza kolizje z przeszkodami i zapisuje odległość do najbliższej ściany.
     void sense(const std::vector<sf::RectangleShape> &obstacles)
     {
         if (dead || completed)
@@ -271,6 +283,7 @@ struct Rocket
         sf::Vector2f origin = sprite.getPosition();
         float baseAngle = sprite.getRotation().asDegrees() - 90.f;
 
+        // symulacja czujników odległości
         for (size_t i = 0; i < laserAngles.size(); ++i)
         {
             float rad = (baseAngle + laserAngles[i]) * 3.14159f / 180.f;
@@ -282,6 +295,7 @@ struct Rocket
             sf::Vector2f closestPoint = rayEnd;
             bool hitSomething = false;
 
+            // sprawdzenie kolizji z przeszkodami
             for (const auto &p : obstacles)
             {
                 sf::FloatRect b = p.getGlobalBounds();
@@ -292,6 +306,7 @@ struct Rocket
                     {{b.position.x, b.position.y + b.size.y}, {b.position.x, b.position.y}}};
 
                 sf::Vector2f hitPoint;
+                // sprawdzenie kolizji z ścianami
                 for (auto &wall : walls)
                 {
                     if (getLineIntersection(origin, rayEnd, wall.first, wall.second, hitPoint))
@@ -310,7 +325,7 @@ struct Rocket
         }
     }
 
-    // Sprawdza, czy rakieta przeleciała przez niebieski punkt kontrolny. Jeśli tak, zalicza go i zmusza algorytm do celowania w kolejny punkt
+    // sprawdza, czy rakieta przeleciała przez niebieski punkt kontrolny. Jeśli tak, zalicza go i zmusza algorytm do celowania w kolejny punkt
     void checkCheckpoints(const std::vector<sf::CircleShape> &checkpoints)
     {
         if (dead || completed)
@@ -321,6 +336,7 @@ struct Rocket
             visitedCheckpoints.resize(checkpoints.size(), false);
         }
 
+        // sprawdzenie kolizji z punktami kontrolnymi
         sf::FloatRect myBounds = sprite.getGlobalBounds();
         for (size_t i = 0; i < checkpoints.size(); ++i)
         {
@@ -329,14 +345,13 @@ struct Rocket
             if (myBounds.findIntersection(checkpoints[i].getGlobalBounds()))
             {
                 visitedCheckpoints[i] = true;
-                // === KLUCZOWA POPRAWKA ===
-                // Resetujemy dystans, aby zmusić rakietę do lotu do NOWEGO celu
+                // reset dystansu, aby zmusić rakietę do lotu do nowego celu
                 bestDistanceToTarget = 999999.f;
             }
         }
     }
 
-    // Sprawdza kolizje fizyczne. Jeśli rakieta uderzy w ścianę to ginie. Jeśli dotknie zielonego celu końcowego – wygrywa (oznaczana jako completed)
+    // sprawdza kolizje fizyczne. Jeśli rakieta uderzy w ścianę to ginie. Jeśli dotknie zielonego celu końcowego – wygrywa (oznaczana jako completed)
     void checkCollision(const std::vector<sf::RectangleShape> &obstacles, sf::Vector2f targetPos)
     {
         if (dead || completed)
@@ -349,7 +364,7 @@ struct Rocket
                 dead = true;
             }
         }
-        // Kolizja z granicami ekranu
+        // kolizja z granicami ekranu
         if (sprite.getPosition().x < 0 || sprite.getPosition().x > 1000 ||
             sprite.getPosition().y < 0 || sprite.getPosition().y > 1000)
         {
@@ -387,8 +402,8 @@ struct Rocket
         }
         fitness += checkpointCount * 10000.0;
 
-        // 2. Dystans do AKTUALNEGO celu (Max 2000 pkt)
-        // Dzięki temu, że max za dystans (2000) < bonus za checkpoint (10000),
+        // 2. dystans do aktualnego celu (max 2000 pkt)
+        // dzięki temu, że max za dystans (2000) < bonus za checkpoint (10000),
         // rakieta, która zdobyła checkpoint zawsze wygrywa z tą, która jest tylko blisko.
         if (bestDistanceToTarget < 99999.f)
         {
@@ -396,22 +411,22 @@ struct Rocket
             fitness += distReward;
         }
 
-        // 3. Bonus za ukończenie i szybkość
+        // 3. bonus za ukończenie i szybkość
         if (completed)
         {
             fitness += 20000.0;
-            // Im szybciej, tym więcej punktów
+            // im szybciej, tym więcej punktów
             fitness += ((double)maxLifetime / (double)(timeAlive + 1)) * 5000.0;
         }
 
-        // 4. Mikro-nagroda za ruch (żeby nie kręciły się w miejscu)
+        // 4. mikro-nagroda za ruch (żeby nie kręciły się w miejscu)
         float totalMovement = std::sqrt(
             std::pow(sprite.getPosition().x - startPos.x, 2) +
             std::pow(sprite.getPosition().y - startPos.y, 2));
         fitness += totalMovement * 0.1;
     }
 
-    // Rysuje rakietę na ekranie. Jeśli silnik jest włączony, dorysowuje ogień. Najlepsza rakieta w populacji jest wyróżniona kolorem zielonym
+    // rysuje rakietę na ekranie. Jeśli silnik jest włączony, dorysowuje ogień. Najlepsza rakieta w populacji jest wyróżniona kolorem zielonym
     void draw(sf::RenderWindow &win, bool best)
     {
         if (dead && !best)

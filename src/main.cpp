@@ -20,6 +20,7 @@
 
 int main()
 {
+    // Inicjalizacja okna oraz tekstu
     auto window = sf::RenderWindow(sf::VideoMode({1000u, 1000u}), "Symulacja algorytmu genetycznego - Neural Network Rockets C++");
     window.setFramerateLimit(200);
     sf::Font font;
@@ -41,6 +42,7 @@ int main()
         przeszkody.push_back(p);
     };
 
+    // Dodawanie przeszkód i krawędzi
     dodajPrzeszkode({600.f, 20.f}, {400.f, 450.f});
     dodajPrzeszkode({600.f, 20.f}, {0.f, 220.f});
     dodajPrzeszkode({600.f, 20.f}, {0.f, 720.f});
@@ -58,15 +60,18 @@ int main()
         checkpoints.push_back(ch);
     };
 
+    // Dodawanie checkpointów   
     dodajCheckpoint({700.f, 620.f});
     dodajCheckpoint({100.f, 430.f});
     dodajCheckpoint({700.f, 130.f});
 
+    // Finalny checkpoint
     sf::CircleShape cel({50.f});
     cel.setFillColor(sf::Color::Green);
     cel.setOrigin({50.f, 50.f});
     cel.setPosition({100.f, 100.f});
 
+    // Wczytanie tekstur
     sf::Texture texture;
     if (!texture.loadFromFile("../../src/img/rakieta.png"))
         return -1;
@@ -76,6 +81,7 @@ int main()
 
     sf::Vector2f startPos = {100.f, 900.f};
 
+    // Inicjalizacja populacji
     std::vector<Rocket> population;
     for (int i = 0; i < POPULATION_SIZE; ++i)
     {
@@ -84,10 +90,12 @@ int main()
         population.push_back(r);
     }
 
+    // Inicjalizacja zmiennych
     int generation = 1;
     int timer = 0;
     bool showLasers = false;  // Toggle widoku laserów klawiszem L
 
+    // Główna pętla
     while (window.isOpen())
     {
         while (const std::optional event = window.pollEvent())
@@ -101,9 +109,11 @@ int main()
             }
         }
 
+        // Sprawdzenie czy wszystkie rakiety są martwe
         bool allDead = true;
         for (auto &rocket : population)
         {
+            // Jeśli rakieta jest żywa lub ukończona => aktualizacja
             if (!rocket.dead && !rocket.completed)
             {
                 rocket.timeAlive++;
@@ -118,6 +128,7 @@ int main()
 
         timer++;
 
+        // Jeśli wszystkie rakiety są martwe lub osiagnieto limit życia
         if (allDead || timer > LIFETIME)
         {
             double maxFit = -std::numeric_limits<double>::infinity();
@@ -125,6 +136,7 @@ int main()
             int completedCount = 0;
             int maxCheckpoints = 0;
 
+            // Obliczenie fitnessu dla każdej rakiety
             for (auto &r : population)
             {
                 r.calcFitness(checkpoints, cel.getPosition(), startPos, LIFETIME);
@@ -134,6 +146,7 @@ int main()
                 if (r.completed)
                     completedCount++;
 
+                // Obliczenie ilości odwiedzonych checkpointów
                 int cpCount = 0;
                 for (bool v : r.visitedCheckpoints)
                     if (v)
@@ -141,16 +154,19 @@ int main()
                 maxCheckpoints = std::max(maxCheckpoints, cpCount);
             }
 
+            // Wypisanie statystyk
             std::cout << "=== GEN " << generation << " ===" << std::endl;
             std::cout << "  Max Fitness: " << (long)maxFit << std::endl;
             std::cout << "  Ukończone: " << completedCount << "/" << POPULATION_SIZE << std::endl;
             std::cout << "  Max CP: " << maxCheckpoints << "/3" << std::endl;
 
+            // Wyznaczenie nowej populacji
             population = evolve(population, texture, fireTexture, startPos, checkpoints.size());
             generation++;
             timer = 0;
         }
 
+        // Rysowanie
         window.clear(sf::Color::White);
         for (const auto &cp : checkpoints)
             window.draw(cp);
@@ -158,7 +174,7 @@ int main()
         for (const auto &p : przeszkody)
             window.draw(p);
 
-        // Znajdź najlepszą do rysowania (żywą, a jak nie ma to martwą z najlepszym wynikiem)
+        // Znajdź najlepszą do rysowania (żywą lub martwą z najlepszym wynikiem)
         int bestIdx = 0;
         double bestScore = -1.0;
 
@@ -166,15 +182,16 @@ int main()
         // i jest najbliżej celu (liczone na bieżąco dla wizualizacji)
         for (size_t i = 0; i < population.size(); ++i)
         {
+            // Jeśli rakieta jest martwa, przechodzimy do następnej
             if (population[i].dead)
                 continue;
 
             int cp = 0;
+            // Obliczenie ilości odwiedzonych checkpointów
             for (auto v : population[i].visitedCheckpoints)
                 if (v)
                     cp++;
-
-            // Prosta heurystyka do wyboru "kamery"
+            // Obliczenie wyniku
             double score = cp * 10000.0 - population[i].bestDistanceToTarget;
             if (score > bestScore)
             {
@@ -183,6 +200,7 @@ int main()
             }
         }
 
+        // Rysowanie każdej rakiety
         for (size_t i = 0; i < population.size(); ++i)
         {
             population[i].draw(window, (i == bestIdx));
@@ -208,6 +226,7 @@ int main()
             }
         }
 
+        // Rysowanie statystyk
         textGen.setString("Gen: " + std::to_string(generation) + " | Step: " + std::to_string(timer) + " | [L] toggle raycasts");
         window.draw(textGen);
         window.display();

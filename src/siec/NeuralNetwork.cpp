@@ -10,7 +10,8 @@ NeuralNetwork::~NeuralNetwork()
         delete m;
 }
 
-// Realizuje przepływ sygnału przez sieć (od wejścia do wyjścia). Dla każdej warstwy:
+// FeedForward
+// realizuje przepływ sygnału przez sieć (od wejścia do wyjścia). Dla każdej warstwy:
 // 1. Pobiera wartości neuronów jako macierz.
 // 2. Mnoży je przez macierz wag (używając MultiplyMatrix).
 // 3. Ustawia wynik jako wartości neuronów w kolejnej warstwie. Zarządza również dynamiczną alokacją pamięci dla tymczasowych macierzy.
@@ -67,8 +68,6 @@ NeuralNetwork::NeuralNetwork(std::vector<int> topology)
         this->weightMatrices.push_back(m);
     }
 }
-
-// --- IMPLEMENTACJA GA ---
 
 // (Dla Algorytmu Genetycznego) Pobiera wszystkie wagi ze wszystkich macierzy i spłaszcza je do jednego długiego wektora. Służy do stworzenia "genotypu" sieci.
 std::vector<double> NeuralNetwork::getWeights() const

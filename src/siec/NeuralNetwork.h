@@ -25,8 +25,6 @@ public:
     double getTotalError() { return this->error; };
     std::vector<double> getErrors() { return this->errors; };
 
-    // --- NOWE METODY DLA ALGORYTMU GENETYCZNEGO ---
-    // Pobiera wszystkie wagi jako jeden długi wektor (chromosom)
     std::vector<double> getWeights() const;
     // Wgrywa wagi z wektora do sieci
     void setWeights(const std::vector<double> &weights);

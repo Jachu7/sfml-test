@@ -21,9 +21,11 @@ const int LIFETIME = 2000;           // Czas trwania rundy
 // Tworzy resztę nowej populacji poprzez mieszanie wag dwóch rodziców (Crossover) i losowe zmiany wag (Mutacja).
 inline std::vector<Rocket> evolve(std::vector<Rocket> &oldPop, sf::Texture &t, sf::Texture &ft, sf::Vector2f startPos, int cpCount)
 {
+    // Inicjalizacja nowej populacji
     std::vector<Rocket> newPop;
     newPop.reserve(POPULATION_SIZE);
 
+    // Sortowanie populacji
     std::sort(oldPop.begin(), oldPop.end(), [](const Rocket &a, const Rocket &b)
               { return a.fitness > b.fitness; });
 
@@ -31,6 +33,7 @@ inline std::vector<Rocket> evolve(std::vector<Rocket> &oldPop, sf::Texture &t, s
     int eliteCount = 8;
     for (int i = 0; i < std::min(eliteCount, (int)oldPop.size()); ++i)
     {
+        // Klonowanie najlepszych rakiet
         Rocket elita(t, ft, true);
         elita.brain->setWeights(oldPop[i].brain->getWeights());
         elita.reset(startPos, cpCount);
@@ -56,14 +59,18 @@ inline std::vector<Rocket> evolve(std::vector<Rocket> &oldPop, sf::Texture &t, s
                 best2 = cand;
         }
 
+        // Tworzenie nowej rakiety poprzez mieszanie wag dwóch rodziców
         Rocket child(t, ft, true);
         std::vector<double> genes1 = oldPop[best1].brain->getWeights();
         std::vector<double> genes2 = oldPop[best2].brain->getWeights();
         std::vector<double> childGenes;
 
+        // Mieszanie wag rodziców i mutacja
         for (size_t i = 0; i < genes1.size(); ++i)
         {
+            // Losowy wybór rodzica
             double gene = (rand() % 2 == 0) ? genes1[i] : genes2[i];
+            // Mutacja
             if ((rand() % 100) < MUTATION_RATE)
             {
                 gene += randomRange(-MUTATION_STRENGTH, MUTATION_STRENGTH);
@@ -72,6 +79,7 @@ inline std::vector<Rocket> evolve(std::vector<Rocket> &oldPop, sf::Texture &t, s
             childGenes.push_back(gene);
         }
 
+        // Ustawienie wag nowej rakiety
         child.brain->setWeights(childGenes);
         child.reset(startPos, cpCount);
         newPop.push_back(child);
